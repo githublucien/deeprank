@@ -39,7 +39,7 @@ class StructureSimilarity(object):
         self.ref = ref
         self.verbose = verbose
 
-    def compute_lrmsd_fast(self,lzone=None,method='svd',check=True):
+    def compute_lrmsd_fast(self,lzone=None,method='svd',check=True,returns='lrmsd'):
         """Fast routine to compute the L-RMSD.
 
         This routine parse the PDB directly without using pdb2sql.
@@ -104,7 +104,6 @@ class StructureSimilarity(object):
                 except ValueError:
                     pass
 
-
         # extract the xyz
         else:
             print('WARNING : The atom order have not been checked. Switch to check=True or continue at your own risk')
@@ -130,8 +129,19 @@ class StructureSimilarity(object):
         # rotate the entire fragment
         xyz_decoy_short = self.rotation_matrix(xyz_decoy_short,U,center=False)
 
+        lrmsd = self.get_rmsd(xyz_decoy_short,xyz_ref_short)
+        lmatd  = self.get_matd(xyz_decoy_short,xyz_ref_short)
+
         # compute the RMSD
-        return self.get_rmsd(xyz_decoy_short,xyz_ref_short)
+        if returns == 'lrmsd':
+            return self.get_rmsd(xyz_decoy_short,xyz_ref_short)
+
+        elif returns == 'both':
+            rmsd = self.get_rmsd(xyz_decoy_short,xyz_ref_short)
+            matd = self.get_matd(xyz_decoy_short,xyz_ref_short)
+            return rmsd, matd
+        else:
+            raise ValueError("returns must be 'lrmsd' or 'both'")
 
     def compute_lzone(self,save_file=True,filename=None):
         """Compute the zone for L-RMSD calculation
@@ -984,6 +994,38 @@ class StructureSimilarity(object):
         """
         n = len(P)
         return np.sqrt(1./n*np.sum((P-Q)**2))
+
+    def get_matd(self,P,Q):
+        """Compute the matrix distance (need better name)
+
+        Args:
+            P (np.array(nx3)): position of the points in the first molecule
+            Q (np.array(nx3)): position of the points in the second molecule
+
+        Returns:
+            float: MATD value
+        """
+        tp = self.get_trans_vect(P)
+        tq = self.get_trans_vect(Q)
+        dt = tp-tq
+
+        Pt = P + tp
+        Qt = Q + tq
+        U = self.get_rotation_matrix(Pt,Qt,method='svd')
+
+        Z = np.zeros(U.shape[0])
+        I = np.array([1])
+
+        R = np.vstack((
+            np.hstack((U,dt.reshape(-1,1))),
+            np.hstack((Z,I))
+            ))
+        I = np.eye(4)
+
+        d1 = np.sum(np.abs(R-I))
+        d2 = np.sum((R-I)**2)
+
+        return d2
 
     @staticmethod
     def get_trans_vect(P):
