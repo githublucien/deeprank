@@ -129,8 +129,8 @@ class StructureSimilarity(object):
         # rotate the entire fragment
         xyz_decoy_short = self.rotation_matrix(xyz_decoy_short,U,center=False)
 
-        lrmsd = self.get_rmsd(xyz_decoy_short,xyz_ref_short)
-        lmatd  = self.get_matd(xyz_decoy_short,xyz_ref_short)
+        #lrmsd = self.get_rmsd(xyz_decoy_short,xyz_ref_short)
+        #lmatd  = self.get_matd(xyz_decoy_short,xyz_ref_short)
 
         # compute the RMSD
         if returns == 'lrmsd':
@@ -192,7 +192,7 @@ class StructureSimilarity(object):
                 resData[chain].append(num)
             return resData
 
-    def compute_irmsd_fast(self,izone=None,method='svd',cutoff=10.0,check=True):
+    def compute_irmsd_fast(self,izone=None,method='svd',cutoff=10.0,check=True, returns='irmsd'):
         """Fast method to compute the i-rmsd
 
         Require the precalculation of the izone
@@ -270,7 +270,14 @@ class StructureSimilarity(object):
         xyz_contact_decoy = self.rotation_matrix(xyz_contact_decoy,U,center=False)
 
         # return the RMSD
-        return self.get_rmsd(xyz_contact_decoy,xyz_contact_ref)
+        if returns == 'irmsd':
+            return self.get_rmsd(xyz_contact_decoy,xyz_contact_ref)
+        elif returns == 'both':
+            imatd = self._matd(U,np.zeros(3))
+            irmsd = self.get_rmsd(xyz_contact_decoy,xyz_contact_ref)
+            return irmsd, imatd
+        else:
+            raise ValueError("retruns must be 'irsmd' or 'both' not ", returns)
 
     def compute_izone(self,cutoff=5.0,save_file=True,filename=None):
         """Compute the zones  for i-rmsd calculationss
@@ -1013,19 +1020,29 @@ class StructureSimilarity(object):
         Qt = Q + tq
         U = self.get_rotation_matrix(Pt,Qt,method='svd')
 
+        matd = self._matd(U,dt)
+        return matd
+
+    @staticmethod
+    def _matd(U,trans):
+        """compute the madt from the rot matrix and vector
+
+        Args:
+            U (np.array): 3x3 rotation matrix
+            trans (np.array): 1x3 translation vector
+        """
+
         Z = np.zeros(U.shape[0])
         I = np.array([1])
 
         R = np.vstack((
-            np.hstack((U,dt.reshape(-1,1))),
+            np.hstack((U,trans.reshape(-1,1))),
             np.hstack((Z,I))
             ))
         I = np.eye(4)
 
-        d1 = np.sum(np.abs(R-I))
-        d2 = np.sum((R-I)**2)
+        return np.linalg.norm(R-I)
 
-        return d2
 
     @staticmethod
     def get_trans_vect(P):
